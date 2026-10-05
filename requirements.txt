@@ -1,0 +1,6 @@
+# List only the libraries you use, with pinned versions.
+# 使うライブラリだけを、バージョン固定して書いてください。
+# Examples / 例:
+# numpy==1.26.4
+# opencv-python==4.10.0.84
+# torch==2.3.1
