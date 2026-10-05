@@ -1,0 +1,57 @@
+# DR(eye)VE baseline (RGB branch), hyper-parameters follow the reference
+# experiments/train/config.py of https://github.com/ndrplz/dreyeve
+experiment: dreyeve_c3d
+seed: 0
+device: auto            # auto | cpu | cuda | cuda:1
+output_dir: outputs
+
+model:
+  backbone: c3d         # c3d | r3d_18 | mc3_18 | r2plus1d_18
+  pretrained: false     # Sports-1M C3D weights are not ported; true only for torchvision backbones
+  out_layer: layer4     # torchvision backbones only
+  coarse_scale: 0.25    # coarse 3D path runs on (H/4, W/4), e.g. 448 -> 112
+  in_channels: 3
+  # branches: {image: 3, optical_flow: 3, segmentation: 19}   # multi-branch DreyeveNet (needs a matching dataset)
+
+data:
+  root: data/myEye2Wheeler
+  clip_len: 16
+  frame_size: [448, 448]        # [H, W] full-frame resolution
+  use_crop: true                # auxiliary crop loss (training only)
+  crop_before_size: [256, 256]  # resize before cropping (H/4, W/4) patches
+  crop_type: random             # random | central (reference default: central)
+  mirror: true
+  sigma: 0.03                   # GT Gaussian std, fraction of frame width
+  gaze_window: 0                # +- frames of gaze aggregated into the GT map
+  coords: normalized            # gaze x,y in [0,1] (normalized) or pixels (pixel)
+  gaze_columns: {frame: frame, timestamp: timestamp, x: x, y: y}
+  fps: null                     # needed only if gaze.csv has timestamps and frames/ dir
+  skip_no_gaze: true
+  train_stride: 1
+  val_stride: 16
+  test_stride: 1
+  # train_sequences: [seq_000, ...]   # alternative to splits/<split>.txt
+  mean: [0.43216, 0.394666, 0.37645]
+  std: [0.22803, 0.22145, 0.216989]
+  dummy:                        # used with --dummy
+    train_sequences: 4
+    val_sequences: 1
+    test_sequences: 1
+    frames_per_sequence: 64
+    stride: 4
+    native_size: [144, 256]
+
+train:
+  epochs: 20
+  batch_size: 16
+  num_workers: 4
+  lr: 1.0e-4
+  betas: [0.9, 0.999]
+  weight_decay: 0.0
+  w_loss_fine: 1.0
+  w_loss_crop: 1.0
+  amp: true                     # mixed precision on CUDA
+  max_steps_per_epoch: 512      # reference: 512 batches / epoch; null = full epoch
+  max_val_steps: 64
+  log_every: 20
+  vis_every_epoch: true

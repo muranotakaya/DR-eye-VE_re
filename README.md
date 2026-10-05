@@ -1,31 +1,24 @@
-yy年度に卒業修了予定者のレポジトリテンプレート（Copilotと作成）。年度はOverleafと同じ。例：2026年3月卒業の最上叡智産の場合（topicは3語程度）
+# Rider gaze saliency prediction — DR(eye)VE PyTorch baseline
 
-25-mogami-eichi-scene-flow
-
-以下テンプレ。ここまで消す。
-
-# <project title>
+Predicting the gaze saliency map of motorcycle / two-wheeler riders from ego-centric video.
+This repository starts with a clean PyTorch 2.x re-implementation of the four-wheeler baseline
+**DR(eye)VE** (Palazzi et al., "Predicting the Driver's Focus of Attention: the DR(eye)VE Project",
+IEEE TPAMI 41(7):1720–1733, as cited in the official repo README; arXiv: https://arxiv.org/abs/1705.03854).
 
 ## Repo name (must)
-- Format: `yy-family-given-topic[-purpose]`
-- All lowercase, words separated by hyphens `-`
-- `yy` = graduation/completion fiscal year (2 digits; same rule as Overleaf)
-- Examples:
-  - `25-mogami-eichi-scene-flow`
-  - `25-mogami-eichi-scene-flow-code`
-  - `25-mogami-eichi-scene-flow-data`
+- Format: `yy-family-given-topic[-purpose]` (current repo name `DR-eye-VE_re` does not follow it yet — TODO)
 
 ## Overview
-- Author: <family given>
-- FY (yy): <25>
-- Topic keywords: <2-4 words>
-- Upstream (if any): <URL or "none"> (reference repo/code URL / 参考URL)
+- Author: TODO <family given>
+- FY (yy): TODO
+- Topic keywords: rider gaze, saliency, video
+- Upstream: https://github.com/ndrplz/dreyeve (MIT License, Keras 1 / Theano). Architecture ported, no code or weights copied.
 
 ## Environment (must)
-- OS: <Ubuntu 22.04 / Windows 11 / etc.>
-- Python: <e.g., 3.11.7>
-- Key libs: <e.g., numpy==..., torch==..., opencv-python==...> (major libraries only / `pip freeze` から主要なものを抜粋)
-- GPU/CUDA (if any): <e.g., CUDA 12.x>
+- OS: Linux (verified in a Linux container)
+- Python: 3.11
+- Key libs: torch==2.14.1, torchvision==0.29.1, numpy==2.4.6, opencv-python-headless==5.0.0.93, PyYAML==6.0.1 (see `requirements.txt`)
+- GPU/CUDA: optional (tests and the dummy run were verified on CPU only)
 
 ## Setup
 ### Option A: pip
@@ -35,39 +28,83 @@ source .venv/bin/activate  # (Windows: .venv\Scripts\activate)
 pip install -r requirements.txt
 ```
 
-### Option B: conda (if you use environment.yml)
+### Option B: conda
 ```bash
 conda env create -f environment.yml
-conda activate <env-name>
+conda activate kameda-lab
 ```
 
-> **Note:** `data/` and `outputs/` are gitignored, so local data and experiment results can be placed there and will normally stay out of commits.
-> `data/` と `outputs/` は `.gitignore` 済みなので、手元のデータや実験結果はそこに置いてよく、通常のコミットには入りません。
+> `data/` and `outputs/` are gitignored. Note: the top-level `datasets/` directory is **code**
+> (re-included in `.gitignore`); put data under `data/`.
+
+## Project layout
+```
+configs/                    YAML configs (`_base_` inheritance, CLI overrides via --opts key=value)
+  dreyeve_c3d.yaml          reference hyper-parameters (T=16, 448x448, Adam 1e-4, KLD)
+  dreyeve_r3d18.yaml        same head on Kinetics-400 R3D-18
+  dreyeve_mc3_18.yaml       same head on Kinetics-400 MC3-18
+  dummy_debug.yaml          small CPU setting for smoke tests
+datasets/two_wheeler_dataset.py   real-data Dataset, synthetic Dataset (--dummy), GT rendering
+models/baseline_dreyeve.py  DR(eye)VE saliency branch + multi-branch DreyeveNet
+utils/metrics.py            KLD (loss), CC, SIM, NSS, IG
+utils/visualization.py      overlays / prediction grids
+utils/config.py             config loading, seeding, device
+train.py, evaluate.py, test_baseline.py
+```
+
+## Model
+One DR(eye)VE saliency branch (`models/baseline_dreyeve.py`), input `[B, C, T, H, W]` → output `[B, 1, H, W]`:
+
+1. **Coarse path**: the clip is resized to `(H/4, W/4)` and encoded by a 3D-CNN — C3D up to `conv4b`
+   (as in the paper) or a torchvision `r3d_18` / `mc3_18` / `r2plus1d_18` — then collapsed over time (max),
+   bilinearly upsampled, `conv3x3 → 1` + ReLU, and upsampled to `(H, W)`.
+2. **Refinement**: concatenated with the full-resolution last frame → conv 32-16-8-1 (LeakyReLU 0.001) → ReLU.
+3. **Crop path (training only)**: a random `(H/4, W/4)` crop of the clip (taken from a 256×256 resize)
+   goes through the *shared* encoder and its own head; both outputs are trained with KLD, as in the reference.
+
+Intentional deviations from the reference code: size-based (not factor-based) upsampling so other backbones /
+non-square inputs work; max over time instead of the fixed `pool4` reshape (identical for C3D, T=16);
+per-channel Kinetics mean/std normalization instead of the dataset mean frame; Sports-1M C3D weights are not
+ported (C3D trains from scratch — use `r3d_18` for pretrained features). Only the RGB branch is trained
+for now; `DreyeveNet` (image + flow + semseg sum) is implemented but needs a dataset providing those inputs.
 
 ## Data policy (must)
-### Public datasets
-- Do NOT copy dataset files into this repository.
-- Provide the exact URL (paper/official/DOI) and required subset description.
-
-### Private / custom datasets
-- Share via limited-access URL (GitHub/OneDrive/etc.).
-- List required files explicitly (file path, name, size).
-- If manual steps exist, describe them and share only the necessary files.
+### Public dataset: myEye2Wheeler
+- Paper: https://arxiv.org/abs/2502.12723 (40 riders, Tobii Glasses 2 ego-centric video, 1920×1080).
+- Do NOT copy the dataset into this repository; place it under `data/myEye2Wheeler/`.
+- **The exact release format has not been verified yet.** The loader expects the layout below; convert
+  the raw export into it (or adapt `data.gaze_columns` / `data.coords` in the config):
+```
+data/myEye2Wheeler/
+  splits/{train,val,test}.txt   # sequence ids, one per line
+  <seq_id>/video.mp4            # or <seq_id>/frames/000000.jpg ...
+  <seq_id>/gaze.csv             # columns frame,x,y  (x,y normalized [0,1], top-left origin; empty = lost)
+                                #   or timestamp,x,y (seconds; converted with video fps)
+  <seq_id>/saliency/000000.png  # optional precomputed GT maps (used instead of gaze.csv)
+```
+- GT map for frame *t*: sum of Gaussians (σ = `data.sigma` × width) at the gaze points of frames
+  `t ± data.gaze_window`, scaled to max 1. NSS uses the binary fixation map of frame *t*.
 
 ## How to run (reproducibility) (must)
-1. Setup environment (above)
-2. Get data (URLs above)
-3. Run:
 ```bash
-python <your_entrypoint>.py --config <config>
+# 1) unit tests (synthetic data only, ~10 s on CPU)
+python -m pytest -q test_baseline.py
+# 2) smoke test of the full pipeline without data
+python train.py    --config configs/dummy_debug.yaml --dummy
+python evaluate.py --config configs/dummy_debug.yaml --dummy --checkpoint outputs/dummy_debug_dummy/best.pt
+# 3) real data
+python train.py    --config configs/dreyeve_c3d.yaml   # or configs/dreyeve_r3d18.yaml
+python evaluate.py --config configs/dreyeve_c3d.yaml --checkpoint outputs/dreyeve_c3d/best.pt --split test
 ```
-4. Expected outputs:
-- <output path>
-- <example filenames>
+Expected outputs (`outputs/<experiment>[_dummy]/`): `config.yaml`, `log.jsonl` (per-epoch train loss and
+val KLD/CC/SIM/NSS), `best.pt`, `last.pt`, `vis/val_epochXXX.png`, and `eval_<split>/{metrics.json, per_sample.csv, samples.png}`.
+
+`datasets.write_dummy_dataset(root)` writes a synthetic dataset in the on-disk layout above (mp4 + gaze.csv),
+useful to test the real loader: `python train.py --config configs/dummy_debug.yaml --opts data.root=<root>`.
 
 ## Reproducibility check (must)
-- Confirm the experiment can be reproduced on another machine.
-- If any manual operation exists, write it below.
+- Verified in a clean Linux container (CPU): `test_baseline.py` 17 passed; dummy train/evaluate runs end-to-end.
+- Not yet verified: GPU training, real myEye2Wheeler data, pretrained Kinetics weights download.
 
 ## Manual steps (if any)
-- <GUI clicks / parameter edits / file edits, etc.>
+- Converting the raw myEye2Wheeler export to the layout above (TODO once the data is available).
