@@ -1,0 +1,7 @@
+# DR(eye)VE head on a Kinetics-400 pretrained R3D-18 encoder.
+_base_: dreyeve_c3d.yaml
+experiment: dreyeve_r3d18
+model:
+  backbone: r3d_18
+  pretrained: true
+  out_layer: layer4

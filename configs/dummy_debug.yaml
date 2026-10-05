@@ -1,0 +1,13 @@
+# Small, CPU-friendly setting for smoke tests: python train.py --config configs/dummy_debug.yaml --dummy
+_base_: dreyeve_c3d.yaml
+experiment: dummy_debug
+data:
+  frame_size: [128, 128]
+  crop_before_size: [64, 64]
+train:
+  epochs: 2
+  batch_size: 4
+  num_workers: 0
+  max_steps_per_epoch: 8
+  max_val_steps: 4
+  log_every: 2

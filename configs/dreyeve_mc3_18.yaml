@@ -1,0 +1,6 @@
+_base_: dreyeve_c3d.yaml
+experiment: dreyeve_mc3_18
+model:
+  backbone: mc3_18
+  pretrained: true
+  out_layer: layer4

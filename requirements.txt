@@ -1,6 +1,8 @@
-# List only the libraries you use, with pinned versions.
-# 使うライブラリだけを、バージョン固定して書いてください。
-# Examples / 例:
-# numpy==1.26.4
-# opencv-python==4.10.0.84
-# torch==2.3.1
+# Versions verified with test_baseline.py (Python 3.11, CPU). For GPU, install the torch /
+# torchvision build matching your CUDA from https://pytorch.org/get-started/locally/
+torch==2.14.1
+torchvision==0.29.1
+numpy==2.4.6
+opencv-python-headless==5.0.0.93
+PyYAML==6.0.1
+pytest==9.1.1

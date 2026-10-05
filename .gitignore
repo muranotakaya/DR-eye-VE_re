@@ -215,6 +215,8 @@ __marimo__/
 # Large binary data files — store via URL in README instead
 data/
 datasets/
+# ...except the top-level code package datasets/ (PyTorch Dataset classes, no data inside)
+!/datasets/
 *.h5
 *.hdf5
 *.npy
